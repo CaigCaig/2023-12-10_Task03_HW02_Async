@@ -11,14 +11,25 @@ using namespace std;
 using namespace std::chrono_literals;
 using namespace std::chrono;
 
-constexpr int size_v = 10000000;
+constexpr int size_v = 1000;
 
 //#define ACCUM
 
 #ifndef ACCUM
 
-mutex m;
+template<typename It, typename T, typename F, size_t size = 25>
+F para_for_each(It begin, It end, T init, F func)
+{
+    size_t curr_size = std::distance(begin, end);
+    if (curr_size <= size) return for_each(begin, end, func);
+    auto mid = begin;
+    advance(mid, curr_size/2);
+    auto ft_res = async(para_for_each<It, T, F>, begin, mid, init, func);
+    auto l_res = para_for_each(mid, end, init, func);
+    return ft_res.get() + l_res;
+}
 
+/*
 template<typename It, typename F>
 void para_for_each(It begin, It end, F func)
 {
@@ -26,7 +37,13 @@ void para_for_each(It begin, It end, F func)
     const auto length = std::distance(begin, end);
     if (0 == length) return;
     int numSegments = thread::hardware_concurrency() - 1;
+    if (numSegments == 1)
+    {
+        return for_each(func.begin(), func.end(), [&](int& i) {sum += i; });
+    }
     int segmentSize = length / numSegments;
+    auto next = begin;
+    advance(next, segmentSize);
 
     vector<future<void>> futures(numSegments);
     int segment = 0;
@@ -46,6 +63,7 @@ void para_for_each(It begin, It end, F func)
 
     for (auto& future : futures) future.wait();
 }
+*/
 
 /*
 template<typename It, typename F>
@@ -80,7 +98,7 @@ int main()
  
     sum = 0;
     start = chrono::high_resolution_clock::now();
-    para_for_each(v.begin(), v.end(), [&](int& i) {sum += i; });
+    para_for_each(v.begin(), v.end(), 0, [&](int& i) {sum += i; });
     end = chrono::high_resolution_clock::now();
     time = duration_cast<nanoseconds>(end - start).count() / 1'000'000'000.0;
     cout << sum << endl << "time, s: " << time << endl;
